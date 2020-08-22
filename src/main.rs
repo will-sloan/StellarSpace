@@ -1,12 +1,12 @@
 use bevy::prelude::*;
-//use bevy::sprite::collide_aabb::{collide, Collision};
+use bevy::sprite::collide_aabb::{collide, Collision};
 
 fn main() {
     App::build()
         .add_default_plugins()
         .add_startup_system(setup.system())
         .add_system(animate_sprite_system.system())
-        //.add_system(collision_system.system())
+        .add_system(collision_system.system())
         .run();
 }
 struct MainDude {
@@ -16,6 +16,7 @@ struct MainDude {
 struct Solid {}
 const GUYSPEED: f32 = 20.0;
 const SCALE_FACTOR: f32 = 3.0;
+const SPRITEDIMENSIONS: f32 = 16.0;
 
 fn setup(
     mut commands: Commands,
@@ -46,7 +47,7 @@ fn setup(
         // })
         .spawn(SpriteSheetComponents {
             texture_atlas: texture_atlas_handle,
-            translation: Translation(Vec3::new(0.0, 0.0, 0.1)),
+            translation: Translation(Vec3::new(-400.0, -400.0, 0.1)),
             scale: Scale(SCALE_FACTOR),
             ..Default::default()
         })
@@ -71,7 +72,7 @@ fn setup(
             material: materials.add(Color::rgb(1.8, 1.2, 1.2).into()),
             translation: Translation(Vec3::new(0.0, -50.0, 0.2)),
             sprite: Sprite {
-                size: Vec2::new(30.0, 30.0),
+                size: Vec2::new(300.0, 300.0),
             },
             ..Default::default()
         })
@@ -173,35 +174,45 @@ fn animate_sprite_system(
             // }
             if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
                 *translation.x_mut() -= maindude.speed;
+                print!("x: {}", translation.x_mut());
+                println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
                 *translation.x_mut() += maindude.speed;
+                print!("x: {}", translation.x_mut());
+                println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
                 *translation.y_mut() += maindude.speed;
+                print!("x: {}", translation.x_mut());
+                println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
                 *translation.y_mut() -= maindude.speed;
+                print!("x: {}", translation.x_mut());
+                println!(" y: {}", &translation.y_mut());
             }
             // let right_side =
             // let left_side =
             // let top =
             // let bottom =
 
-            *translation.0.x_mut() = f32::max(
-                -1.0 * ((window.width as f32 + 16.0 * SCALE_FACTOR) / 2.0),
-                f32::min(
-                    (window.width as f32 - 16.0 * SCALE_FACTOR) / 2.0,
-                    translation.0.x(),
-                ),
-            );
-            *translation.y_mut() = f32::max(
-                -1.0 * (window.height as f32 + 16.0 * SCALE_FACTOR) / 2.0,
-                f32::min(
-                    (window.height as f32 - 16.0 * SCALE_FACTOR) / 2.0,
-                    translation.0.y(),
-                ),
-            );
+            // boundaries
+            // *translation.0.x_mut() = f32::max(
+            //     -1.0 * ((window.width as f32 + 16.0 * SCALE_FACTOR) / 2.0),
+            //     f32::min(
+            //         (window.width as f32 - 16.0 * SCALE_FACTOR) / 2.0,
+            //         translation.0.x(),
+            //     ),
+            // );
+            // *translation.y_mut() = f32::max(
+            //     -1.0 * (window.height as f32 + 16.0 * SCALE_FACTOR) / 2.0,
+            //     f32::min(
+            //         (window.height as f32 - 16.0 * SCALE_FACTOR) / 2.0,
+            //         translation.0.y(),
+            //     ),
+            // );
+
             // print!("x: {}", translation.x_mut());
             // println!(" y: {}", &translation.y_mut());
             // else {
@@ -215,17 +226,134 @@ fn animate_sprite_system(
     }
 }
 
-// fn collision_system(
-//     mut query_player: Query<(&MainDude, &Sprite, &mut Translation)>,
-//     mut query_walls: Query<(&Solid, &Sprite, &mut Translation)>,
-// ) {
-//     for (_, char_sprite, char_loc) in &mut query_player.iter() {
-//         for (_, wall_sprite, wall_loc) in &mut query_walls.iter() {
-//             let collision = collide(char_loc.0, char_sprite.size, wall_loc.0, wall_sprite.size);
+fn collision_system(
+    mut query_player: Query<(&MainDude, &mut TextureAtlasSprite, &mut Translation)>,
+    mut query_walls: Query<(&Solid, &Sprite, &mut Translation)>,
+) {
+    // println!("Hello");
+    for (_, char_sprite, mut char_loc) in &mut query_player.iter() {
+        //println!("1");
+        for (_, wall_sprite, wall_loc) in &mut query_walls.iter() {
+            // println!(
+            //     "a_pos: {}, a_size: {}, b_pos: {}, b_size: {}",
+            //     char_loc.0,
+            //     Vec2::new(SPRITEDIMENSIONS, SPRITEDIMENSIONS),
+            //     wall_loc.0,
+            //     wall_sprite.size,
+            // );
+            let collision = collide(
+                char_loc.0,
+                Vec2::new(SPRITEDIMENSIONS, SPRITEDIMENSIONS),
+                wall_loc.0,
+                wall_sprite.size,
+            );
+            // println!(
+            //     "{} {} {} {}",
+            //     char_loc.0,
+            //     Vec2::new(SPRITEDIMENSIONS, SPRITEDIMENSIONS),
+            //     wall_loc.0,
+            //     wall_sprite.size
+            // );
+            //println!("{}", char_loc.0.x());
+            /*
+                if (rect1.x < rect2.x + rect2.width &&
 
-//             if let Some(collision) = collision {
-//                 println!("Collision");
-//             }
-//         }
-//     }
-// }
+                rect1.x + rect1.width > rect2.x &&
+
+                rect1.y < rect2.y + rect2.height &&
+
+                rect1.y + rect1.height > rect2.y) {
+                    // collision detected!
+                }
+            */
+            /*
+                rect1.x =  char_loc.0.x()
+                rect1.y = char_loc.0.y()
+                rect1.width && rect1.height = SPRITEDIMENSIONS
+
+                rect2.x = wall_loc.0.x()
+                rect2.y = wall_loc.0.y()
+                rect2.width = wall_sprite.size.x()
+                rect2.height = wall_sprite.size.y()
+
+                if (char_loc.0.x() < wall_loc.0.x() + wall_sprite.size.x() &&
+
+                char_loc.0.x() + SPRITEDIMENSIONS > wall_loc.0.x() &&
+
+                char_loc.0.y() < wall_loc.0.y() + wall_sprite.size.y() &&
+
+                char_loc.0.y() + SPRITEDIMENSIONS > wall_loc.0.y()) {
+                    // collision detected!
+                }
+
+            */
+            // if char_loc.0.x() < wall_loc.0.x() + wall_sprite.size.x()
+            //     && char_loc.0.x() + SPRITEDIMENSIONS > wall_loc.0.x()
+            //     && char_loc.0.y() < wall_loc.0.y() + wall_sprite.size.y()
+            //     && char_loc.0.y() + SPRITEDIMENSIONS > wall_loc.0.y()
+            // {
+            //     println!("\n\n\nHIT\n\n\n");
+            // }
+
+            // if char_loc.0.x() < wall_loc.0.x() + wall_sprite.size.x()
+            //     && char_loc.0.x() + SPRITEDIMENSIONS > wall_loc.0.x()
+            //     && char_loc.0.y() < wall_loc.0.y() + wall_sprite.size.y()
+            //     && char_loc.0.y() + SPRITEDIMENSIONS > wall_loc.0.y()
+            // {
+            //     println!("\n\n\nHIT\n\n\n");
+            // }
+
+            //if (char_loc.0)
+            if let Some(collision) = collision {
+                //println!("{:?}", collision);
+                match collision {
+                    Collision::Left => {
+                        println!(
+                            "LEFT {} {} {}",
+                            char_loc.x_mut(),
+                            wall_loc.0.x(),
+                            SPRITEDIMENSIONS
+                        );
+                        //println!("Hit left");
+                        *char_loc.x_mut() = wall_loc.0.x() - SPRITEDIMENSIONS; //f32::min(wall_loc.0.x() - SPRITEDIMENSIONS, )*char_loc.x_mut() - //SPRITEDIMENSIONS;
+                                                                               //wall_sprite.size.x();
+                    }
+                    Collision::Right => {
+                        println!(
+                            "RIGHT {} {} {}",
+                            char_loc.x_mut(),
+                            wall_loc.0.x(),
+                            SPRITEDIMENSIONS
+                        );
+                        //println!("Hit right");
+                        *char_loc.x_mut() = wall_loc.0.x() + SPRITEDIMENSIONS; //*char_loc.x_mut() + //SPRITEDIMENSIONS;
+                                                                               //wall_sprite.size.x()
+                    }
+                    Collision::Top => {
+                        println!(
+                            "TOP {} {} {}",
+                            char_loc.y_mut(),
+                            wall_loc.0.y(),
+                            SPRITEDIMENSIONS
+                        );
+                        *char_loc.y_mut() = wall_loc.0.y() +//*char_loc.y_mut() + //wall_sprite.size.y();
+                     SPRITEDIMENSIONS + wall_sprite.size.y()/2.0;
+                    }
+                    Collision::Bottom => {
+                        println!(
+                            "BOTTOM Char Y {} Wall Loc {:?} SPRITE {} CALC {}",
+                            char_loc.y_mut(),
+                            wall_loc.0,
+                            SPRITEDIMENSIONS,
+                            wall_loc.0.y() - wall_sprite.size.y() / 2.0 - SPRITEDIMENSIONS
+                        );
+                        *char_loc.y_mut() =
+                            wall_loc.0.y() - wall_sprite.size.y() / 2.0 - SPRITEDIMENSIONS
+                        //*char_loc.y_mut() - SPRITEDIMENSIONS;
+                        //wall_sprite.size.y();
+                    }
+                }
+            }
+        }
+    }
+}
