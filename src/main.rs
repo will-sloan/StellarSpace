@@ -7,46 +7,91 @@ use bevy::{
 };
 
 struct Solid {}
+const WALL_WIDTH: f32 = 30.0;
+const WALL_COLOR: Color = Color::rgb(1.8, 1.2, 1.2);
+fn map_setup(
+    mut commands: Commands,
+    windows: Res<Windows>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let window = match windows.get_primary() {
+        Some(a) => Vec2::new(a.width as f32, a.height as f32),
+        None => Vec2::new(1280.0, 720.0),
+    };
 
-fn map_setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
+    println!("Width: {} Height: {}", window.x(), window.y());
     commands
         .spawn(SpriteComponents {
-            material: materials.add(Color::rgb(1.8, 1.2, 1.2).into()),
+            material: materials.add(WALL_COLOR.into()),
             translation: Translation(Vec3::new(0.0, -50.0, 0.2)),
             sprite: Sprite {
-                size: Vec2::new(300.0, 300.0),
+                size: Vec2::new(150.0, 150.0),
             },
             ..Default::default()
         })
         .with(Solid {});
 
     // Future walls
-    // commands
-    //     .spawn(SpriteComponents {
-    //         material: materials.add(Color::rgb(1.8, 1.2, 1.2).into()),
-    //         translation: Translation(Vec3::new(0.0, -50.0, 0.2)),
-    //         sprite: Sprite {
-    //             size: Vec2::new(300.0, 300.0),
-    //         },
-    //         ..Default::default()
-    //     })
-    //     .with(Solid {});
 
+    //Right Side
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(WALL_COLOR.into()),
+            translation: Translation(Vec3::new(window.x() / 2.0, 0.0, 0.2)),
+            sprite: Sprite {
+                size: Vec2::new(WALL_WIDTH, window.y() + 40.0),
+            },
+            ..Default::default()
+        })
+        .with(Solid {});
+
+    // Left Side
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(WALL_COLOR.into()),
+            translation: Translation(Vec3::new(-1.0 * window.x() / 2.0, 0.0, 0.2)),
+            sprite: Sprite {
+                size: Vec2::new(WALL_WIDTH, window.y() + 40.0),
+            },
+            ..Default::default()
+        })
+        .with(Solid {});
+
+    // Bottom
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(WALL_COLOR.into()),
+            translation: Translation(Vec3::new(0.0, -1.0 * window.y() / 2.0, 0.2)),
+            sprite: Sprite {
+                size: Vec2::new(window.x(), WALL_WIDTH),
+            },
+            ..Default::default()
+        })
+        .with(Solid {});
+
+    // Top
+
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(WALL_COLOR.into()),
+            translation: Translation(Vec3::new(0.0, window.y() / 2.0, 0.2)),
+            sprite: Sprite {
+                size: Vec2::new(window.x(), WALL_WIDTH),
+            },
+            ..Default::default()
+        })
+        .with(Solid {});
+    //
     // commands
     //     .spawn(SpriteComponents {
-    //         material: materials.add(Color::rgb(1.8, 1.2, 1.2).into()),
-    //         translation: Translation(Vec3::new(0.0, 0.0, 0.2)),
+    //         material: materials.add(WALL_COLOR.into()),
+    //         translation: Translation(Vec3::new(window.x() / -2.0, window.y() / 2.0, 0.2)),
     //         sprite: Sprite {
     //             size: Vec2::new(20.0, 300.0),
     //         },
     //         ..Default::default()
     //     })
     //     .with(Solid {});
-
-    // let window = match windows.get_primary() {
-    //     Some(a) => a,
-    //     None => panic!("No Window!!! How is this Possible!!!"),
-    // };
 }
 
 pub struct MapPlugin;
@@ -131,7 +176,7 @@ fn char_setup(
         .load_sync(&mut textures, "assets/GIMP FIGURES/char_1-Sheet.png")
         .unwrap();
     let texture = textures.get(&texture_handle).unwrap();
-
+    asset_server.watch_for_changes().unwrap();
     let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 6, 1);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
@@ -166,23 +211,23 @@ fn animate_sprite_system(
 
             if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
                 *translation.x_mut() -= maindude.speed;
-                print!("x: {}", translation.x_mut());
-                println!(" y: {}", &translation.y_mut());
+                // print!("x: {}", translation.x_mut());
+                // println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
                 *translation.x_mut() += maindude.speed;
-                print!("x: {}", translation.x_mut());
-                println!(" y: {}", &translation.y_mut());
+                // print!("x: {}", translation.x_mut());
+                // println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
                 *translation.y_mut() += maindude.speed;
-                print!("x: {}", translation.x_mut());
-                println!(" y: {}", &translation.y_mut());
+                // print!("x: {}", translation.x_mut());
+                // println!(" y: {}", &translation.y_mut());
             }
             if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
                 *translation.y_mut() -= maindude.speed;
-                print!("x: {}", translation.x_mut());
-                println!(" y: {}", &translation.y_mut());
+                // print!("x: {}", translation.x_mut());
+                // println!(" y: {}", &translation.y_mut());
             }
 
             // boundaries
@@ -220,7 +265,7 @@ fn char_collision_system(
             );
 
             if let Some(collision) = collision {
-                println!("{:?}", collision);
+                // println!("{:?}", collision);
                 match collision {
                     Collision::Left => {
                         *char_loc.x_mut() = wall_loc.0.x() - wall_sprite.size.x() / 2.0 - GUYWIDTH;
