@@ -1,14 +1,21 @@
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    input::keyboard::ElementState,
     input::mouse::MouseButtonInput,
     prelude::*,
     render::pass::ClearColor,
     sprite::collide_aabb::{collide, Collision},
 };
+use rand::Rng;
 
 struct Solid {}
 const WALL_WIDTH: f32 = 30.0;
 const WALL_COLOR: Color = Color::rgb(1.8, 1.2, 1.2);
+const WINDOW_WIDTH: u32 = 1920;
+const WINDOW_HEIGHT: u32 = 1080;
+
+const CHAR_PATH: &str = "assets/GIMP FIGURES/char_1-Sheet.png";
+
 fn map_setup(
     mut commands: Commands,
     windows: Res<Windows>,
@@ -16,20 +23,20 @@ fn map_setup(
 ) {
     let window = match windows.get_primary() {
         Some(a) => Vec2::new(a.width as f32, a.height as f32),
-        None => Vec2::new(1280.0, 720.0),
+        None => Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
     };
 
     println!("Width: {} Height: {}", window.x(), window.y());
-    commands
-        .spawn(SpriteComponents {
-            material: materials.add(WALL_COLOR.into()),
-            translation: Translation(Vec3::new(0.0, -50.0, 0.2)),
-            sprite: Sprite {
-                size: Vec2::new(150.0, 150.0),
-            },
-            ..Default::default()
-        })
-        .with(Solid {});
+    // commands
+    //     .spawn(SpriteComponents {
+    //         material: materials.add(WALL_COLOR.into()),
+    //         translation: Translation(Vec3::new(0.0, -50.0, 0.2)),
+    //         sprite: Sprite {
+    //             size: Vec2::new(150.0, 150.0),
+    //         },
+    //         ..Default::default()
+    //     })
+    //     .with(Solid {});
 
     // Future walls
 
@@ -92,6 +99,143 @@ fn map_setup(
     //         ..Default::default()
     //     })
     //     .with(Solid {});
+}
+
+fn get_available_location(
+    outside_loc: Vec2,
+    outside_size: Vec2,
+    inside_loc: Vec2,
+    inside_size: Vec2,
+    target_size: Vec2,
+) -> Vec2 {
+    // Get outside rectangle and inside rectangle.
+    // Returns a location that the provided rectangle can be drawn
+    // on with interference
+
+    // The outside border is only half visible on screen (15 pixel on screen and 15 outside)
+    // Outside bound - half border width - target_size width /2.0 = the farthest possible x value
+    let outside_x_bound = outside_loc.x() / 2.0 - outside_size.x() / 2.0 - target_size.x();
+    let inside_x_bound = inside_loc.x() / 2.0 + inside_size.x() / 2.0 + target_size.x();
+    let outside_y_bound = outside_loc.y() / 2.0 - outside_size.y() / 2.0 - target_size.y();
+    let inside_y_bound = inside_loc.y() / 2.0 - inside_size.x() / 2.0 + target_size.y();
+
+    let mut rng = rand::thread_rng();
+    let right_rand = rng.gen_range(inside_x_bound, outside_x_bound);
+    let left_rand = rng.gen_range(-1.0 * outside_x_bound, -1.0 * inside_x_bound);
+    let top_rand = rng.gen_range(inside_y_bound, outside_y_bound);
+    let bottom_rand = rng.gen_range(-1.0 * outside_y_bound, -1.0 * inside_y_bound);
+
+    match rng.gen_range(1, 5) {
+        1 => Vec2::new(right_rand, top_rand),
+        2 => Vec2::new(left_rand, top_rand),
+        3 => Vec2::new(left_rand, bottom_rand),
+        4 => Vec2::new(right_rand, bottom_rand),
+        _ => panic!("Number Generated that wasn't accounted for"),
+    }
+}
+
+fn a_is_within_b(a_loc: Vec2, a_size: Vec2, b_loc: Vec2, b_size: Vec2) -> bool {
+    let a_left = a_loc.x() - a_size.x() / 2.0;
+    let a_right = a_loc.x() + a_size.x() / 2.0;
+    let a_top = a_loc.y() + a_size.y() / 2.0;
+    let a_bottom = a_loc.y() - a_size.y() / 2.0;
+
+    let b_left = b_loc.x() - b_size.x() / 2.0;
+    let b_right = b_loc.x() + b_size.x() / 2.0;
+    let b_top = b_loc.y() + b_size.y() / 2.0;
+    let b_bottom = b_loc.y() - b_size.y() / 2.0;
+
+    if a_left >= b_left && a_right <= b_right && a_top <= b_top && a_bottom >= b_bottom {
+        println!("Hello");
+        return true;
+    }
+    false
+}
+pub struct GoalPlugin;
+impl Plugin for GoalPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_startup_system(goal_setup.system())
+            .add_system(check_goal_system.system());
+    }
+}
+struct goal;
+fn goal_setup(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    windows: Res<Windows>,
+) {
+    let window = match windows.get_primary() {
+        Some(a) => Vec2::new(a.width as f32, a.height as f32),
+        None => Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
+    };
+    // creates location of goal
+    commands
+        .spawn(SpriteComponents {
+            material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+            translation: Translation(Vec3::new(-200.0, 0.0, 0.0)),
+            sprite: Sprite {
+                size: Vec2::new(50.0, 50.0),
+            },
+            ..Default::default()
+        })
+        .with(goal {});
+}
+
+fn check_goal_system(
+    //textures: ResMut<Assets<TextureAtlas>>,
+    mut goal_query: Query<(&goal, &Sprite, &mut Translation)>,
+    mut player_query: Query<(&MainDude, &Handle<TextureAtlas>, &mut Translation)>,
+) {
+    let window = Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32);
+    // let texture_handle = asset_server.load_sync(&mut textures, CHAR_PATH).unwrap();
+    // let texture = textures.get(&texture_handle).unwrap();
+    // let texture_handle: Handle<Texture> = asset_server.get_handle(CHAR_PATH).unwrap();
+    // let texture = textures.get(&texture_handle).unwrap();
+    // let texture_handle: Handle<Texture> = match asset_server.get_handle(CHAR_PATH) {
+    //     Some(a) => a,
+    //     None => panic!("No handle loaded from loc: {}", CHAR_PATH),
+    // };
+    // let texture = match textures.get(&texture_handle) {
+    //     Some(a) => a,
+    //     None => panic!("No Texture at: {:?}", texture_handle),
+    // };
+
+    // println!("Texture: {:?}", texture.size);
+    // If the player steps on green, it wins
+
+    for (_, goal_sprite, goal_trans) in &mut goal_query.iter() {
+        for (_, _texture_handle, mut player_trans) in &mut player_query.iter() {
+            //let texture_atlas = textures.get(texture_handle).unwrap();
+            //println!("{:?}", texture_atlas.size);
+            // if a_is_within_b(
+            //     player_trans.0.truncate(),
+            //     Vec2::new(GUYWIDTH * SCALE_FACTOR, GUYHEIGHT * SCALE_FACTOR),
+            //     goal_trans.0.truncate(),
+            //     goal_sprite.size,
+            // ) {
+            //     println!("Player on green");
+            // }
+            let collision = collide(
+                player_trans.0,
+                Vec2::new(GUYWIDTH * SCALE_FACTOR, GUYHEIGHT * SCALE_FACTOR),
+                goal_trans.0,
+                goal_sprite.size,
+            );
+            if let Some(_collision) = collision {
+                println!("On the Green");
+                let new_loc = get_available_location(
+                    Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
+                    Vec2::new(WALL_WIDTH, WALL_WIDTH),
+                    Vec2::new(0.0, -50.0),
+                    Vec2::new(150.0, 150.0),
+                    Vec2::new(GUYWIDTH * SCALE_FACTOR, GUYHEIGHT * SCALE_FACTOR),
+                );
+                println!("New Loc: {:?}", new_loc);
+                *player_trans.x_mut() = new_loc.x();
+                *player_trans.y_mut() = new_loc.y();
+            }
+        }
+    }
 }
 
 pub struct MapPlugin;
@@ -172,9 +316,7 @@ fn char_setup(
     mut textures: ResMut<Assets<Texture>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
-    let texture_handle = asset_server
-        .load_sync(&mut textures, "assets/GIMP FIGURES/char_1-Sheet.png")
-        .unwrap();
+    let texture_handle = asset_server.load_sync(&mut textures, CHAR_PATH).unwrap();
     let texture = textures.get(&texture_handle).unwrap();
     asset_server.watch_for_changes().unwrap();
     let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 6, 1);
@@ -229,6 +371,9 @@ fn animate_sprite_system(
                 // print!("x: {}", translation.x_mut());
                 // println!(" y: {}", &translation.y_mut());
             }
+
+            // print!("x: {}", translation.x_mut());
+            // println!(" y: {}", translation.y_mut());
 
             // boundaries
             // *translation.0.x_mut() = f32::max(
@@ -286,13 +431,19 @@ fn char_collision_system(
 }
 
 fn position_mouse_click_system(
+    time: Res<Time>,
+    mut timer: ResMut<MouseTimer>,
     mut state: ResMut<State>,
     mouse_pos: ResMut<MouseLoc>,
     mouse_button_input_events: Res<Events<MouseButtonInput>>,
+    // mut query_player: Query<(&MainDude, &mut TextureAtlasSprite, &mut Translation)>
+    _: &MainDude,
+    _: &TextureAtlasSprite,
+    mut player_trans: Mut<Translation>,
     //cursor_moved_events: Res<Events<CursorMoved>>,
     // cursor_movement: Res<Events<CursorMoved>>,
     // mouse_button: Res<Events<MouseButtonInput>>,
-    // mut query_player: Query<(&MainDude, &mut TextureAtlasSprite, &mut Translation)>,
+    // mut query_player: Query<(&MainDude, &mut TextureAtlasSprite, &mut Translation)>
 ) {
     // println!("{:?}", cursor_movement);
     // println!("{:?}", mouse_button);
@@ -318,6 +469,10 @@ fn position_mouse_click_system(
         .iter(&mouse_button_input_events)
     {
         println!("event: {:?} position: {:?}", event, mouse_pos.0);
+        if let ElementState::Pressed = event.state {
+            *player_trans.x_mut() = mouse_pos.0.x() - WINDOW_WIDTH as f32 / 2.0;
+            *player_trans.y_mut() = mouse_pos.0.y() - WINDOW_HEIGHT as f32 / 2.0;
+        }
     }
 }
 #[derive(Default)]
@@ -344,6 +499,7 @@ fn general_setup(mut commands: Commands) {
     commands.spawn(Camera2dComponents::default());
 }
 
+struct MouseTimer(Timer);
 pub struct GeneralPlugin;
 
 impl Plugin for GeneralPlugin {
@@ -353,15 +509,25 @@ impl Plugin for GeneralPlugin {
             .add_resource(ClearColor(Color::rgb(0.5, 0.20, 0.80)))
             .init_resource::<State>()
             .add_resource(MouseLoc(Vec2::new(0.0, 0.0)))
+            .add_resource(MouseTimer(Timer::from_seconds(0.01, true)))
             .add_system(mouse_movement_updating_system.system());
     }
 }
 
 fn main() {
     App::build()
+        .add_resource(WindowDescriptor {
+            title: "Stellar Space".to_string(),
+            width: WINDOW_WIDTH,
+            height: WINDOW_HEIGHT,
+            vsync: true,
+            resizable: false,
+            ..Default::default()
+        })
         .add_default_plugins()
         .add_plugin(GeneralPlugin)
         .add_plugin(CharacterPlugin)
         .add_plugin(MapPlugin)
+        .add_plugin(GoalPlugin)
         .run();
 }
