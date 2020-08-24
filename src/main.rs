@@ -158,6 +158,7 @@ impl Plugin for GoalPlugin {
             .add_system(check_goal_system.system());
     }
 }
+
 struct goal;
 fn goal_setup(
     mut commands: Commands,
@@ -203,7 +204,7 @@ fn check_goal_system(
     // println!("Texture: {:?}", texture.size);
     // If the player steps on green, it wins
 
-    for (_, goal_sprite, goal_trans) in &mut goal_query.iter() {
+    for (_, goal_sprite, mut goal_trans) in &mut goal_query.iter() {
         for (_, _texture_handle, mut player_trans) in &mut player_query.iter() {
             //let texture_atlas = textures.get(texture_handle).unwrap();
             //println!("{:?}", texture_atlas.size);
@@ -230,9 +231,20 @@ fn check_goal_system(
                     Vec2::new(150.0, 150.0),
                     Vec2::new(GUYWIDTH * SCALE_FACTOR, GUYHEIGHT * SCALE_FACTOR),
                 );
-                println!("New Loc: {:?}", new_loc);
+                let new_loc2 = get_available_location(
+                    Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
+                    Vec2::new(WALL_WIDTH, WALL_WIDTH),
+                    Vec2::new(0.0, -50.0),
+                    Vec2::new(150.0, 150.0),
+                    goal_sprite.size,
+                );
+                println!("New Player Loc: {:?}", new_loc);
                 *player_trans.x_mut() = new_loc.x();
                 *player_trans.y_mut() = new_loc.y();
+
+                println!("New Goal Loc: {:?}", new_loc2);
+                *goal_trans.x_mut() = new_loc2.x();
+                *goal_trans.y_mut() = new_loc2.y();
             }
         }
     }
@@ -245,52 +257,61 @@ impl Plugin for MapPlugin {
         app.add_startup_system(map_setup.system());
     }
 }
+/*
+
+struct Scoreboard {
+    score: usize,
+}
 
 fn text_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font_handle = asset_server.load("FiraSans-Bold.ttf").unwrap();
-    commands
-        // texture
-        .spawn(TextComponents {
-            style: Style {
-                align_self: AlignSelf::FlexEnd,
-                ..Default::default()
+    commands.spawn(TextComponents {
+        text: Text {
+            font: font_handle,
+            value: "Score:".to_string(),
+            style: TextStyle {
+                color: Color::rgb(0.2, 0.2, 0.8),
+                font_size: 40.0,
             },
-            text: Text {
-                value: "FPS:".to_string(),
-                font: font_handle,
-                style: TextStyle {
-                    font_size: 60.0,
-                    color: Color::BLUE,
-                },
-            },
-            ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
+
+    // texture
+    // .spawn(TextComponents {
+    //     style: Style {
+    //         align_self: AlignSelf::FlexEnd,
+    //         ..Default::default()
+    //     },
+    //     text: Text {
+    //         value: "FPS:".to_string(),
+    //         font: font_handle,
+    //         style: TextStyle {
+    //             font_size: 60.0,
+    //             color: Color::BLUE,
+    //         },
+    //     },
+    //     ..Default::default()
+    // });
 }
 
-fn text_display_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text>) {
-    for mut text in &mut query.iter() {
-        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-            if let Some(average) = fps.average() {
-                text.value = format!("FPS: {:.2}", average);
-            }
-        }
-    }
+fn text_display_system(score: Res<Scoreboard>, mut text: Mut<Text>) {
+    text.value = score.score.to_string();
 }
 
 pub struct FPSTextPlugin;
 
 impl Plugin for FPSTextPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_startup_system(text_setup.system())
-            .add_system(text_display_system.system());
+        app.add_startup_system(text_setup.system());
+        //.add_system(text_display_system.system());
     }
 }
 
 // fn text_update_system() {
 
 // }
-
+*/
 struct MainDude {
     speed: f32,
 }
@@ -307,6 +328,7 @@ impl Plugin for CharacterPlugin {
             .add_system(animate_sprite_system.system())
             .add_system(char_collision_system.system())
             .add_system(position_mouse_click_system.system());
+        //.add_system(color_click_system.system());
     }
 }
 
@@ -497,6 +519,7 @@ fn mouse_movement_updating_system(
 fn general_setup(mut commands: Commands) {
     //commands.spawn(UiCameraComponents::default());
     commands.spawn(Camera2dComponents::default());
+    //.spawn(UiCameraComponents::default());
 }
 
 struct MouseTimer(Timer);
@@ -505,11 +528,13 @@ pub struct GeneralPlugin;
 impl Plugin for GeneralPlugin {
     // The Camera, Background,and Mouse Position Stuff
     fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(general_setup.system())
-            .add_resource(ClearColor(Color::rgb(0.5, 0.20, 0.80)))
+        app.add_resource(ClearColor(Color::rgb(0.5, 0.20, 0.80)))
             .init_resource::<State>()
             .add_resource(MouseLoc(Vec2::new(0.0, 0.0)))
             .add_resource(MouseTimer(Timer::from_seconds(0.01, true)))
+            .add_startup_system(general_setup.system())
+            //.add_startup_system(setup.system());
+            // .add_system(text_update_system.system())
             .add_system(mouse_movement_updating_system.system());
     }
 }
@@ -529,5 +554,42 @@ fn main() {
         .add_plugin(CharacterPlugin)
         .add_plugin(MapPlugin)
         .add_plugin(GoalPlugin)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .run();
 }
+
+// fn text_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text>) {
+//     for mut text in &mut query.iter() {
+//         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+//             if let Some(average) = fps.average() {
+//                 text.value = format!("FPS: {:.2}", average);
+//             }
+//         }
+//     }
+// }
+
+// fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+//     let font_handle = asset_server
+//         .load("assets/GIMP FIGURES/FiraSans-Bold.ttf")
+//         .unwrap();
+//     commands
+//         .spawn(Camera2dComponents::default())
+//         // 2d camera
+//         .spawn(UiCameraComponents::default())
+//         // texture
+//         .spawn(TextComponents {
+//             style: Style {
+//                 align_self: AlignSelf::FlexEnd,
+//                 ..Default::default()
+//             },
+//             text: Text {
+//                 value: "FPS:".to_string(),
+//                 font: font_handle,
+//                 style: TextStyle {
+//                     font_size: 60.0,
+//                     color: Color::WHITE,
+//                 },
+//             },
+//             ..Default::default()
+//         });
+// }
