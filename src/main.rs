@@ -134,7 +134,7 @@ fn get_available_location(
     }
 }
 
-fn a_is_within_b(a_loc: Vec2, a_size: Vec2, b_loc: Vec2, b_size: Vec2) -> bool {
+fn _a_is_within_b(a_loc: Vec2, a_size: Vec2, b_loc: Vec2, b_size: Vec2) -> bool {
     let a_left = a_loc.x() - a_size.x() / 2.0;
     let a_right = a_loc.x() + a_size.x() / 2.0;
     let a_top = a_loc.y() + a_size.y() / 2.0;
@@ -159,13 +159,13 @@ impl Plugin for GoalPlugin {
     }
 }
 
-struct goal;
+struct Goal(usize);
 fn goal_setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     windows: Res<Windows>,
 ) {
-    let window = match windows.get_primary() {
+    let _window = match windows.get_primary() {
         Some(a) => Vec2::new(a.width as f32, a.height as f32),
         None => Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
     };
@@ -179,15 +179,15 @@ fn goal_setup(
             },
             ..Default::default()
         })
-        .with(goal {});
+        .with(Goal(0));
 }
 
 fn check_goal_system(
     //textures: ResMut<Assets<TextureAtlas>>,
-    mut goal_query: Query<(&goal, &Sprite, &mut Translation)>,
+    mut goal_query: Query<(&mut Goal, &Sprite, &mut Translation)>,
     mut player_query: Query<(&MainDude, &Handle<TextureAtlas>, &mut Translation)>,
 ) {
-    let window = Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32);
+    let _window = Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32);
     // let texture_handle = asset_server.load_sync(&mut textures, CHAR_PATH).unwrap();
     // let texture = textures.get(&texture_handle).unwrap();
     // let texture_handle: Handle<Texture> = asset_server.get_handle(CHAR_PATH).unwrap();
@@ -204,7 +204,7 @@ fn check_goal_system(
     // println!("Texture: {:?}", texture.size);
     // If the player steps on green, it wins
 
-    for (_, goal_sprite, mut goal_trans) in &mut goal_query.iter() {
+    for (mut score, goal_sprite, mut goal_trans) in &mut goal_query.iter() {
         for (_, _texture_handle, mut player_trans) in &mut player_query.iter() {
             //let texture_atlas = textures.get(texture_handle).unwrap();
             //println!("{:?}", texture_atlas.size);
@@ -223,6 +223,8 @@ fn check_goal_system(
                 goal_sprite.size,
             );
             if let Some(_collision) = collision {
+                score.0 += 1;
+                println!("Score is: {}", score.0);
                 println!("On the Green");
                 let new_loc = get_available_location(
                     Vec2::new(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
@@ -453,8 +455,8 @@ fn char_collision_system(
 }
 
 fn position_mouse_click_system(
-    time: Res<Time>,
-    mut timer: ResMut<MouseTimer>,
+    // time: Res<Time>,
+    // mut timer: ResMut<MouseTimer>,
     mut state: ResMut<State>,
     mouse_pos: ResMut<MouseLoc>,
     mouse_button_input_events: Res<Events<MouseButtonInput>>,
@@ -531,11 +533,12 @@ impl Plugin for GeneralPlugin {
         app.add_resource(ClearColor(Color::rgb(0.5, 0.20, 0.80)))
             .init_resource::<State>()
             .add_resource(MouseLoc(Vec2::new(0.0, 0.0)))
-            .add_resource(MouseTimer(Timer::from_seconds(0.01, true)))
+            .add_resource(MouseTimer(Timer::from_seconds(10.0, true)))
             .add_startup_system(general_setup.system())
             .add_system(mouse_movement_updating_system.system());
     }
 }
+// struct Test(Option<i32>);
 
 fn main() {
     App::build()
@@ -543,53 +546,262 @@ fn main() {
             title: "Stellar Space".to_string(),
             width: WINDOW_WIDTH,
             height: WINDOW_HEIGHT,
-            vsync: true,
-            resizable: false,
+            vsync: false,
+            resizable: true,
             ..Default::default()
         })
+        // .add_resource(Test(None))
         .add_default_plugins()
         .add_plugin(GeneralPlugin)
-        .add_plugin(CharacterPlugin)
-        .add_plugin(MapPlugin)
-        .add_plugin(GoalPlugin)
+        .add_plugin(AStarPlugin)
+        // .add_plugin(CharacterPlugin)
+        // .add_plugin(MapPlugin)
+        // .add_plugin(GoalPlugin)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         // .add_startup_system(setup.system())
         // .add_system(text_update_system.system())
         .run();
 }
 
-// fn text_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text>) {
-//     for mut text in &mut query.iter() {
-//         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-//             if let Some(average) = fps.average() {
-//                 text.value = format!("FPS: {:.2}", average);
-//             }
-//         }
-//     }
-// }
+// Hopefully the location of the A* Algorithm Stuff
+// - Drawing Grid
+// - A* Algo
+// - Move player
 
-// fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-//     let font_handle = asset_server
-//         .load("assets/GIMP FIGURES/FiraSans-Bold.ttf")
-//         .unwrap();
-//     commands
-//         .spawn(Camera2dComponents::default())
-//         // 2d camera
-//         .spawn(UiCameraComponents::default())
-//         // texture
-//         .spawn(TextComponents {
-//             style: Style {
-//                 align_self: AlignSelf::FlexEnd,
-//                 ..Default::default()
-//             },
-//             text: Text {
-//                 value: "FPS:".to_string(),
-//                 font: font_handle,
-//                 style: TextStyle {
-//                     font_size: 60.0,
-//                     color: Color::WHITE,
-//                 },
-//             },
-//             ..Default::default()
-//         });
-// }
+pub struct AStarPlugin;
+struct Grid(Vec<Vec<Spot>>);
+
+struct GridInfo {
+    rows: usize,
+    cols: usize,
+}
+
+impl Plugin for AStarPlugin {
+    // The Camera, Background,and Mouse Position Stuff
+    fn build(&self, app: &mut AppBuilder) {
+        let rows = (WINDOW_HEIGHT / GUYSPEED as u32) as usize;
+        let cols = (WINDOW_WIDTH / GUYSPEED as u32) as usize;
+        app.add_resource(GridInfo { rows, cols })
+            .add_resource(Grid(vec![
+                vec![
+                    Spot {
+                        f: 0,
+                        g: 0,
+                        h: 0,
+                        x: 0,
+                        y: 0
+                    };
+                    rows
+                ];
+                cols
+            ]))
+            .add_startup_system(grid_setup.system());
+        //.add_system(a_star.system());
+    }
+}
+
+fn grid_setup(
+    mut commands: Commands,
+    mut grid: ResMut<Grid>,
+    asset_server: Res<AssetServer>,
+    mut textures: ResMut<Assets<Texture>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    window_info: Res<GridInfo>,
+    windows: Res<Windows>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    // let rows = (WINDOW_HEIGHT / GUYSPEED as u32) as usize;
+    // let cols = (WINDOW_WIDTH / GUYSPEED as u32) as usize;
+
+    // let mut grid: Vec<Vec<Spot>> = vec![
+    //         vec![
+    //             Spot {
+    //                 f: 0,
+    //                 g: 0,
+    //                 h: 0,
+    //                 x: 0,
+    //                 y: 0
+    //             };
+    //             rows
+    //         ];
+    //         cols
+    //     ];
+
+    let height = WINDOW_HEIGHT / window_info.rows as u32;
+    let width = WINDOW_WIDTH / window_info.cols as u32;
+    let mut rng = rand::thread_rng();
+    println!(
+        "Height {} Width {} Rows {} Cols {}",
+        height, width, window_info.rows, window_info.cols
+    );
+    let texture_handle = asset_server
+        .load_sync(&mut textures, "assets/GIMP FIGURES/white_square.png")
+        .unwrap();
+    let texture = textures.get(&texture_handle).unwrap();
+
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 1, 1);
+    let white_texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    let texture_handle = asset_server
+        .load_sync(&mut textures, "assets/GIMP FIGURES/red_square.png")
+        .unwrap();
+    let texture = textures.get(&texture_handle).unwrap();
+
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 1, 1);
+    let red_texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    let texture_handle = asset_server
+        .load_sync(&mut textures, "assets/GIMP FIGURES/blue_square.png")
+        .unwrap();
+    let texture = textures.get(&texture_handle).unwrap();
+
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 1, 1);
+    let blue_texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    let texture_handle = asset_server
+        .load_sync(&mut textures, "assets/GIMP FIGURES/green_square.png")
+        .unwrap();
+    let texture = textures.get(&texture_handle).unwrap();
+
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, texture.size, 1, 1);
+    let green_texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    for i in (-1 * (window_info.cols / 2) as i32)..(window_info.cols / 2) as i32 {
+        for j in (-1 * (window_info.rows / 2) as i32)..(window_info.rows / 2) as i32 {
+            let han = match rng.gen_range(1, 9) {
+                1 => red_texture_atlas_handle,
+                2 => blue_texture_atlas_handle,
+                3 => green_texture_atlas_handle,
+                4..=8 => white_texture_atlas_handle,
+                _ => panic!("IMPOSSIBLE"),
+            };
+            //let han = asset_server.get_handle(path).unwrap();
+
+            commands.spawn(SpriteSheetComponents {
+                texture_atlas: han,
+                translation: Translation(Vec3::new(
+                    (i * width as i32) as f32 + (width as f32 / 2.0),
+                    (j * height as i32) as f32 + (height as f32 / 2.0),
+                    0.2,
+                )),
+                scale: Scale(1.0),
+                ..Default::default()
+            });
+            // commands.spawn(SpriteComponents {
+            //     material: materials.add(
+            //         Color::rgb(
+            //             rng.gen_range(0.0, 1.0),
+            //             rng.gen_range(0.0, 1.0),
+            //             rng.gen_range(0.0, 1.0),
+            //         )
+            //         .into(),
+            //     ),
+            // translation: Translation(Vec3::new(
+            //     (i * width as i32) as f32 + (width as f32 / 2.0),
+            //     (j * height as i32) as f32 + (height as f32 / 2.0),
+            //     0.2,
+            // )),
+            //     // translation: Translation(Vec3::new(
+            //     //     (i * width as i32) as f32 + 10.0,
+            //     //     (j * height as i32) as f32 + 10.0,
+            //     //     0.2,
+            //     // )),
+            //     sprite: Sprite {
+            //         size: Vec2::new(width as f32, height as f32),
+            //     },
+            //     ..Default::default()
+            // });
+        }
+    }
+}
+#[derive(Clone, Debug)]
+struct Spot {
+    f: u32,
+    g: u32,
+    h: u32,
+    x: u32,
+    y: u32,
+}
+
+impl Default for Spot {
+    fn default() -> Self {
+        Spot {
+            f: 0,
+            g: 0,
+            h: 0,
+            x: 0,
+            y: 0,
+        }
+    }
+}
+
+fn a_star(
+    time: Res<Time>,
+    mut timer: ResMut<MouseTimer>,
+    mut state: ResMut<State>,
+    mouse_pos: ResMut<MouseLoc>,
+    mouse_button_input_events: Res<Events<MouseButtonInput>>,
+    maindude: &MainDude,
+    mut player_trans: Mut<Translation>,
+) {
+    timer.0.tick(time.delta_seconds);
+    //println!("Hello");
+    if timer.0.finished {
+        // for event in state
+        //     .mouse_button_event_reader
+        //     .iter(&mouse_button_input_events)
+        // {
+        // println!("event: {:?} position: {:?}", event, mouse_pos.0);
+        // if let ElementState::Pressed = event.state {
+        //let goal = mouse_pos.0;
+        let mut start = Spot {
+            x: player_trans.x() as u32,
+            y: player_trans.y() as u32,
+            ..Default::default()
+        };
+        let mut end = Spot {
+            x: mouse_pos.0.x() as u32,
+            y: mouse_pos.0.y() as u32,
+            ..Default::default()
+        };
+        // let a = 0..(WINDOW_WIDTH / maindude.speed as u32);
+        // let b = 0..(WINDOW_WIDTH / maindude.speed as u32);
+        // let grid = arr2(&[a, b]);
+        //let cols: Vec<Vec<Spot>> = vec![0; (WINDOW_WIDTH / maindude.speed as u32) as usize];
+        //let rows = vec![0, (WINDOW_HEIGHT / maindude.speed as u32) as usize];
+        // let rows: Vec<Spot> =
+        //     vec![Spot { f: 0, g: 0, h: 0 }; (WINDOW_HEIGHT / maindude.speed as u32) as usize];
+
+        // let rows = (WINDOW_HEIGHT / maindude.speed as u32) as usize;
+        // let cols = (WINDOW_WIDTH / maindude.speed as u32) as usize;
+        // let mut grid: Vec<Vec<Spot>> = vec![
+        //     vec![
+        //         Spot {
+        //             f: 0,
+        //             g: 0,
+        //             h: 0,
+        //             x: 0,
+        //             y: 0
+        //         };
+        //         rows
+        //     ];
+        //     cols
+        // ];
+
+        let mut openSet: Vec<Spot> = Vec::new();
+        let mut closedSet: Vec<Spot> = Vec::new();
+
+        openSet.push(start);
+
+        while !openSet.is_empty() {}
+
+        println!("No solution");
+        //println!("{:?}", grid);
+
+        // for x
+        // let openSet: Vec<Spot> = start
+        // let cameFrom =
+        // }
+        // }
+    }
+}
